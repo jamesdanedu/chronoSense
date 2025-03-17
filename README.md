@@ -1,6 +1,6 @@
 # ChronoSense 
 
-![Alt text](path/chronoSense/webApp/AboutChronoSense.png)
+![Alt text](webApp/AboutChronoSense.png)
 
 ChronoSense is a data acquisition system designed specifically for science classrooms, enabling teachers and students to collect, visualize, and analyze data from Microbit devices paired with various sensors.
 
