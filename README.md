@@ -78,4 +78,4 @@ ChronoSense is provided as a free resource for educational use and may be freely
 Apache License 2.0
 
 # About
-ChronoSense was developed at St. Mary's Edenderry, Co Offaly  to support hands-on STEM education across multiple disciplines. By combining affordable Microbit technology with accessible data collection tools, ChronoSense makes scientific experimentation more accessible to students.RetryClaude can make mistakes. Please double-check responses.
+ChronoSense was developed at St. Mary's Edenderry, Co Offaly  to support hands-on STEM education across multiple disciplines. By combining affordable Microbit technology with accessible data collection tools, ChronoSense makes scientific experimentation more accessible to students.
