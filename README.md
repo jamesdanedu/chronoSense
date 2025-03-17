@@ -52,17 +52,17 @@ PySerial library
 
 # Installation
 Install the required dependency
-pip install pyserial
+- pip install pyserial
 
 # Basic Usage
-python chronoSense.py
+- python chronoSense.py
 
 # Specify a serial port
-python chronoSense.py --port COM3  # Windows
-python chronoSense.py --port /dev/ttyACM0  # Linux/Mac
+- python chronoSense.py --port COM3                 # Windows
+- python chronoSense.py --port /dev/ttyACM0         # Linux/Mac
 
 # Customize log file location and name
-python chronoSense.py --log-dir experiment_data --prefix temperature_test
+- python chronoSense.py --log-dir experiment_data --prefix temperature_test
 
 # Command Line Arguments
 --port, -p: Serial port for the Microbit
