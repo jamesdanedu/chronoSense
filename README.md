@@ -67,11 +67,11 @@ Install the required dependency
 - python chronoSense.py --log-dir experiment_data --prefix temperature_test
 
 # Command Line Arguments
---port, -p: Serial port for the Microbit
---baud, -b: Baud rate (default: 115200)
---log-dir, -d: Directory to store log files (default: logs)
---prefix, -f: Prefix for log filenames (default: microbit_data)
---retries, -r: Maximum number of connection retries (default: 5)
+- --port, -p: Serial port for the Microbit
+- --baud, -b: Baud rate (default: 115200)
+- --log-dir, -d: Directory to store log files (default: logs)
+- --prefix, -f: Prefix for log filenames (default: microbit_data)
+- --retries, -r: Maximum number of connection retries (default: 5)
 
 # License
 ChronoSense is provided as a free resource for educational use and may be freely distributed to support classroom science projects.
