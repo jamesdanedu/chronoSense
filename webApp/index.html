@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChronoSense</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3182ce;
+            --primary-light: #ebf8ff;
+            --secondary-color: #38b2ac;
+            --panel-bg: #f9fafb;
+            --panel-border: #e2e8f0;
+            --header-bg: #ff3b30;
+            --header-text: #ffffff;
+            --success-color: #38a169;
+            --danger-color: #e53e3e;
+            --connect-btn: #0a84ff;
+            --text-color: #2d3748;
+            --text-muted: #718096;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            color: var(--text-color);
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background-color: var(--header-bg);
+            border-radius: 8px;
+            color: var(--header-text);
+        }
+        
+        .logo-title {
+            display: flex;
+            align-items: center;
+        }
+        
+        .logo {
+            width: 62.5px; /* 25% larger than 50px */
+            height: 62.5px; /* 25% larger than 50px */
+            margin-right: 15px;
+        }
+        
+        h1 {
+            color: var(--header-text);
+            margin: 0;
+            font-size: 26px;
+        }
+        
+        .header-controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            height: 40px;
+        }
+        
+        .control-box {
+            height: 100%;
+            display: flex;
+            align-items: center;
+        }
+        
+        .export-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background-color: rgba(255, 255, 255, 0.15);
+            padding: 0 12px;
+            border-radius: 6px;
+            height: 100%;
+        }
+        
+        .panel {
+            background-color: var(--panel-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            padding: 18px;
+            margin-bottom: 20px;
+            border: 1px solid var(--panel-border);
+        }
+        
+        .panel-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--panel-border);
+        }
+        
+        .flex-container {
+            display: flex;
+            gap: 20px;
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            height: 36px;
+        }
+        
+        button:hover {
+            background-color: #2c5282;
+        }
+        
+        button:disabled {
+            background-color: var(--text-muted);
+            cursor: not-allowed;
+        }
+        
+        #connectButton {
+            background-color: var(--connect-btn);
+            min-width: 110px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        
+        #connectButton:hover {
+            background-color: #0066cc;
+        }
+        
+        #exportButton {
+            background-color: rgba(255, 255, 255, 0.2);
+            min-width: 90px;
+        }
+        
+        #exportButton:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        #exportButton:disabled {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        /* Active export button with better visibility */
+        #exportButton:not(:disabled) {
+            background-color: rgba(255, 255, 255, 0.85);
+            color: var(--header-bg);
+            font-weight: 500;
+        }
+        
+        #exportButton:not(:disabled):hover {
+            background-color: white;
+        }
+        
+        /* Auto export input states */
+        #autoExport {
+            width: 40px;
+            text-align: center;
+            opacity: 0.6;
+            transition: opacity 0.3s, background-color 0.3s;
+        }
+        
+        #autoExport:disabled {
+            opacity: 0.4;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        #autoExport:not(:disabled) {
+            opacity: 1;
+            background-color: rgba(255, 255, 255, 0.85);
+            color: var(--text-color);
+        }
+        
+        .settings-row.disabled {
+            opacity: 0.5;
+        }
+        
+        .settings-row.enabled {
+            opacity: 1;
+        }
+        
+        .connection-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background-color: #4cd964;
+            display: none;
+        }
+        
+        .connection-indicator.active {
+            display: inline-block;
+        }
+        
+        #aboutButton {
+            background-color: rgba(240, 240, 240, 0.9);
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            justify-content: center;
+            border-radius: 50%;
+            flex-shrink: 0;
+            color: var(--header-bg);
+        }
+        
+        #aboutButton:hover {
+            background-color: white;
+        }
+        
+        #dataTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        #dataTable th, #dataTable td {
+            border: 1px solid var(--panel-border);
+            padding: 8px;
+            text-align: left;
+        }
+        
+        #dataTable th {
+            background-color: var(--primary-light);
+            position: sticky;
+            top: 0;
+            color: var(--primary-color);
+        }
+        
+        #dataTable tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .table-container {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            border: 1px solid var(--panel-border);
+            border-radius: 4px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+            background-color: white;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid var(--panel-border);
+        }
+        
+        .select-columns {
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            background-color: white;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid var(--panel-border);
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin-right: 10px;
+        }
+        
+        input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: var(--text-muted);
+            font-size: 12px;
+            padding: 10px;
+            border-top: 1px solid var(--panel-border);
+        }
+        
+        .settings-row {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            color: var(--header-text);
+        }
+        
+        .settings-row label {
+            margin-right: 5px;
+            white-space: nowrap;
+        }
+        
+        input[type="number"], select {
+            padding: 6px;
+            border: none;
+            border-radius: 4px;
+            height: 20px;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        #autoExport {
+            width: 40px;
+            text-align: center;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--panel-border);
+            border-radius: 4px;
+            background-color: white;
+            color: var(--text-color);
+            height: auto;
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            overflow: auto;
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-width: 700px;
+            position: relative;
+        }
+        
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+        
+        .close-modal:hover {
+            color: var(--text-color);
+        }
+        
+        .about-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .about-image {
+            max-width: 100%;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        
+        .about-text {
+            text-align: left;
+            line-height: 1.6;
+        }
+        
+        .about-text h2 {
+            color: var(--primary-color);
+            margin-top: 0;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-title">
+                <img src="ChronoSenseFront.png" alt="ChronoSense Logo" class="logo">
+                <h1>ChronoSense</h1>
+            </div>
+            <div class="header-controls">
+                <div class="control-box">
+                    <button id="connectButton">
+                        <div id="connectionIndicator" class="connection-indicator"></div>
+                        Connect
+                    </button>
+                </div>
+                <div class="export-controls">
+                    <button id="exportButton" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Export
+                    </button>
+                    <div class="settings-row">
+                        <label for="autoExport">Auto (min):</label>
+                        <input type="number" id="autoExport" min="0" max="60" value="0">
+                    </div>
+                </div>
+                <button id="aboutButton" title="About ChronoSense">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-info"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                </button>
+            </div>
+        </header>
+
+        <div class="panel">
+            <div class="panel-title">Data Collection</div>
+            <div class="action-buttons">
+                <button id="clearButton" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trash-2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    Clear Data
+                </button>
+            </div>
+            <span id="dataCount">0 records collected</span>
+            <div class="table-container">
+                <table id="dataTable">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <!-- Column headers will be added dynamically based on incoming data -->
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data rows will be added here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">Visualise</div>
+            <div class="select-columns">
+                <label>Select columns to visualize:</label>
+                <div id="columnSelectors" class="checkbox-group">
+                    <!-- Column checkboxes will be added dynamically -->
+                </div>
+            </div>
+            <div class="settings-row" style="height: auto; color: var(--text-color); margin: 10px 0;">
+                <label for="timeWindow">Time window to display:</label>
+                <select id="timeWindow">
+                    <option value="all">All data</option>
+                    <option value="1" selected>Last 1 minute</option>
+                    <option value="5">Last 5 minutes</option>
+                    <option value="15">Last 15 minutes</option>
+                    <option value="60">Last hour</option>
+                </select>
+            </div>
+            <div class="chart-container">
+                <canvas id="dataChart"></canvas>
+            </div>
+        </div>
+
+        <footer>
+            <p>St. Mary's Edenderry 2025 | Version 1.0</p>
+        </footer>
+    </div>
+
+    <!-- About Modal -->
+    <div id="aboutModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div class="about-content">
+                <img src="AboutChronoSense.png" alt="About ChronoSense" class="about-image">
+                <div class="about-text">
+                    <h2>About ChronoSense</h2>
+                    <p>ChronoSense is a data acquisition application tool designed in St Mary's Edenderry specifically for science and technology classrooms. It enables teachers and students to collect, visualize, and analyze data from Microbit devices paired with various sensors.</p>
+                    
+                    <p>The application was created to support hands-on STEM education across multiple disciplines including Physics, Chemistry, Biology, Agricultural Science, Applied Technology, and even Computer Science. 
+                By combining affordable Microbit technology with accessible data collection tools, ChronoSense makes scientific experimentation more accessible to students.</p>
+                    
+                    <p>Features include:</p>
+                    <ul>
+                        <li>Real-time data collection from Microbit devices via serial USB connection</li>
+                        <li>Dynamic support for any type and number of sensor data values</li>
+                        <li>CSV export capabilities for further analysis in spreadsheet applications</li>
+                        <li>Support for a wide range of sensor types and configurations</li>
+                        <li>Automatic time-stamping of all collected data</li>
+                    </ul>
+                    
+                    <p>ChronoSense is provided as a free resource for educational use and may be freely distributed to support classroom science projects.</p>
+                    <p>The latest version can be downloaded at [Insert github link here] </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let port;
+        let reader;
+        let readLoopRunning = false;
+        let allData = [];
+        let dataColumns = [];
+        let chart;
+        let autoExportInterval;
+        
+        // DOM elements
+        const connectButton = document.getElementById('connectButton');
+        const connectionIndicator = document.getElementById('connectionIndicator');
+        const exportButton = document.getElementById('exportButton');
+        const clearButton = document.getElementById('clearButton');
+        const dataTable = document.getElementById('dataTable');
+        const dataCount = document.getElementById('dataCount');
+        const columnSelectors = document.getElementById('columnSelectors');
+        const autoExportInput = document.getElementById('autoExport');
+        const lastExport = document.getElementById('lastExport');
+        const timeWindowSelect = document.getElementById('timeWindow');
+        const aboutButton = document.getElementById('aboutButton');
+        const aboutModal = document.getElementById('aboutModal');
+        const closeModal = document.querySelector('.close-modal');
+        
+        // Initialize Modal
+        aboutButton.addEventListener('click', () => {
+            aboutModal.style.display = 'block';
+        });
+        
+        closeModal.addEventListener('click', () => {
+            aboutModal.style.display = 'none';
+        });
+        
+        window.addEventListener('click', (event) => {
+            if (event.target === aboutModal) {
+                aboutModal.style.display = 'none';
+            }
+        });
+        
+        // Initialize elements
+        autoExportInput.disabled = true; // Disabled by default
+        const settingsRow = autoExportInput.closest('.settings-row');
+        if (settingsRow) {
+            settingsRow.classList.add('disabled');
+        }
+        if ('serial' in navigator) {
+            connectButton.addEventListener('click', toggleConnection);
+            exportButton.addEventListener('click', () => exportData('csv'));
+            clearButton.addEventListener('click', clearData);
+            autoExportInput.addEventListener('change', setupAutoExport);
+            timeWindowSelect.addEventListener('change', updateChart);
+        } else {
+            connectButton.disabled = true;
+            connectButton.textContent = 'Web Serial API not supported';
+            alert('Your browser does not support the Web Serial API. Please use Chrome or Edge.');
+        }
+        
+        // Initialize the chart
+        function initChart() {
+            const ctx = document.getElementById('dataChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Value'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 0
+                    }
+                }
+            });
+        }
+        initChart();
+        
+        // Connect or disconnect from the serial port
+        async function toggleConnection() {
+            if (port) {
+                // Disconnect
+                if (reader) {
+                    await reader.cancel();
+                    readLoopRunning = false;
+                    reader = null;
+                }
+                
+                await port.close();
+                port = null;
+                
+                connectButton.textContent = 'Connect';
+                connectionIndicator.classList.remove('active');
+                
+                // Disable buttons
+                exportButton.disabled = true;
+                clearButton.disabled = true;
+                
+                // Disable auto-export input
+                autoExportInput.disabled = true;
+                const settingsRow = autoExportInput.closest('.settings-row');
+                if (settingsRow) {
+                    settingsRow.classList.add('disabled');
+                    settingsRow.classList.remove('enabled');
+                }
+                
+                // Stop auto-export if it's running
+                if (autoExportInterval) {
+                    clearInterval(autoExportInterval);
+                    autoExportInterval = null;
+                }
+            } else {
+                // Connect
+                try {
+                    port = await navigator.serial.requestPort();
+                    const baudRate = 115200; // will work for majority of cases, so not configurable for now
+                    
+                    await port.open({ baudRate });
+                    
+                    connectButton.textContent = 'Disconnect';
+                    connectionIndicator.classList.add('active');
+                    
+                    exportButton.disabled = false;
+                    clearButton.disabled = false;
+                    
+                    // Enable auto-export input
+                    autoExportInput.disabled = false;
+                    const settingsRow = autoExportInput.closest('.settings-row');
+                    if (settingsRow) {
+                        settingsRow.classList.remove('disabled');
+                        settingsRow.classList.add('enabled');
+                    }
+                    
+                    // Set up auto-export if enabled
+                    setupAutoExport();
+                    
+                    // Start reading data
+                    readSerialData();
+                    
+                    // Try to restore data from local storage
+                    tryRestoreData();
+                } catch (error) {
+                    console.error('Error connecting to serial port:', error);
+                    alert('Failed to connect to the serial port. Please try again.');
+                }
+            }
+        }
+        
+        // Read data from the serial port
+        async function readSerialData() {
+            if (!port) return;
+            
+            try {
+                reader = port.readable.getReader();
+                readLoopRunning = true;
+                
+                let buffer = '';
+                const decoder = new TextDecoder();
+                
+                while (readLoopRunning) {
+                    const { value, done } = await reader.read();
+                    
+                    if (done) {
+                        reader.releaseLock();
+                        break;
+                    }
+                    
+                    // Decode the received bytes and add to buffer
+                    const chunk = decoder.decode(value);
+                    buffer += chunk;
+                    
+                    // Process complete lines in the buffer
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep the incomplete line in the buffer
+                    
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            processDataLine(line.trim());
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error reading from serial port:', error);
+                
+                connectButton.textContent = 'Connect';
+                connectionIndicator.classList.remove('active');
+                
+                if (reader) {
+                    reader.releaseLock();
+                }
+            }
+        }
+        
+        // Process a line of data from the serial port
+        function processDataLine(line) {
+            try {
+                // Split the line by commas
+                const values = line.split(',').map(v => v.trim());
+                
+                // If this is the first data or columns changed, update the table headers
+                if (dataColumns.length === 0 || values.length !== dataColumns.length) {
+                    updateDataColumns(values);
+                }
+                
+                // Create a data object with timestamp and values
+                const timestamp = new Date();
+                const dataObj = {
+                    timestamp: timestamp
+                };
+                
+                values.forEach((value, index) => {
+                    // Try to convert to number if possible
+                    const numValue = parseFloat(value);
+                    dataObj[dataColumns[index]] = isNaN(numValue) ? value : numValue;
+                });
+                
+                // Add to our data array
+                allData.push(dataObj);
+                
+                // Update the table with the new data
+                addDataRow(dataObj);
+                
+                // Update the data count
+                dataCount.textContent = `${allData.length} records collected`;
+                
+                // Update the chart
+                updateChart();
+                
+                // Save to local storage periodically (every 10 records)
+                if (allData.length % 10 === 0) {
+                    saveToLocalStorage();
+                }
+            } catch (error) {
+                console.error('Error processing data line:', error, line);
+            }
+        }
+        
+        // Update the data columns based on the first data line
+        function updateDataColumns(values) {
+            // Generate generic column names if not provided
+            dataColumns = values.map((_, i) => `field${i+1}`);
+            
+            // Update the table headers
+            const headerRow = dataTable.querySelector('thead tr');
+            
+            // Clear existing headers (except timestamp)
+            while (headerRow.children.length > 1) {
+                headerRow.removeChild(headerRow.lastChild);
+            }
+            
+            // Add new headers
+            dataColumns.forEach(column => {
+                const th = document.createElement('th');
+                th.textContent = column;
+                headerRow.appendChild(th);
+            });
+            
+            // Update column selectors for the chart
+            updateColumnSelectors();
+        }
+        
+        // Update column selectors for the chart
+        function updateColumnSelectors() {
+            // Clear existing checkboxes
+            columnSelectors.innerHTML = '';
+            
+            // Add new checkboxes
+            dataColumns.forEach((column, index) => {
+                const div = document.createElement('div');
+                div.className = 'checkbox-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `col-${index}`;
+                checkbox.dataset.column = column;
+                checkbox.checked = index === 0; // Select the first column by default
+                checkbox.addEventListener('change', updateChart);
+                
+                const label = document.createElement('label');
+                label.htmlFor = `col-${index}`;
+                label.textContent = column;
+                
+                div.appendChild(checkbox);
+                div.appendChild(label);
+                columnSelectors.appendChild(div);
+            });
+            
+            // Initialize chart datasets
+            updateChartDatasets();
+        }
+        
+        // Add a data row to the table
+        function addDataRow(dataObj) {
+            const tbody = dataTable.querySelector('tbody');
+            const row = document.createElement('tr');
+            
+            // Add timestamp cell
+            const timestampCell = document.createElement('td');
+            timestampCell.textContent = dataObj.timestamp.toLocaleTimeString();
+            row.appendChild(timestampCell);
+            
+            // Add data cells
+            dataColumns.forEach(column => {
+                const cell = document.createElement('td');
+                cell.textContent = dataObj[column];
+                row.appendChild(cell);
+            });
+            
+            // Add to the top of the table
+            tbody.insertBefore(row, tbody.firstChild);
+            
+            // Limit the number of rows displayed (for performance)
+            if (tbody.children.length > 100) {
+                tbody.removeChild(tbody.lastChild);
+            }
+        }
+        
+        // Update the chart with the current data
+        function updateChart() {
+            if (!chart) return;
+            
+            // Get selected columns
+            const selectedColumns = Array.from(columnSelectors.querySelectorAll('input[type="checkbox"]:checked'))
+                .map(cb => cb.dataset.column);
+            
+            // Filter data based on the selected time window
+            const windowMinutes = parseInt(timeWindowSelect.value);
+            const filteredData = windowMinutes === 'all' ? allData : allData.filter(d => {
+                return (new Date() - d.timestamp) <= windowMinutes * 60 * 1000;
+            });
+            
+            // Update datasets
+            chart.data.datasets = selectedColumns.map((column, index) => {
+                const colors = [
+                    '#3182ce', '#38b2ac', '#e53e3e', '#ed8936', 
+                    '#805ad5', '#38a169', '#d69e2e', '#4a5568'
+                ];
+                
+                return {
+                    label: column,
+                    data: filteredData.map(d => ({
+                        x: d.timestamp,
+                        y: d[column]
+                    })),
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length] + '20',
+                    tension: 0.1,
+                    borderWidth: 2,
+                    pointRadius: 1,
+                    pointHoverRadius: 5
+                };
+            });
+            
+            chart.update();
+        }
+        
+        // Initialize chart datasets
+        function updateChartDatasets() {
+            if (!chart) return;
+            chart.data.datasets = [];
+            chart.update();
+            updateChart();
+        }
+        
+        // Export data as CSV
+        function exportData(format) {
+            if (allData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+            
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            
+            // Create CSV header row
+            const headers = ['timestamp', ...dataColumns];
+            const csvRows = [headers.join(',')];
+            
+            // Add data rows
+            allData.forEach(data => {
+                const row = [
+                    data.timestamp.toISOString(),
+                    ...dataColumns.map(col => data[col])
+                ];
+                csvRows.push(row.join(','));
+            });
+            
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8' });
+            const filename = `chronosense-data-${timestamp}.csv`;
+            
+            saveAs(blob, filename);
+        }
+        
+        // Setup auto-export interval
+        function setupAutoExport() {
+            const minutes = parseInt(autoExportInput.value);
+            
+            // Clear existing interval
+            if (autoExportInterval) {
+                clearInterval(autoExportInterval);
+                autoExportInterval = null;
+            }
+            
+            // Set up new interval if minutes > 0
+            if (minutes > 0 && port) {
+                autoExportInterval = setInterval(() => {
+                    exportData('csv');
+                }, minutes * 60 * 1000);
+            }
+        }
+        
+        // Clear all data
+        function clearData() {
+            if (confirm('Are you sure you want to clear all collected data?')) {
+                allData = [];
+                
+                // Clear the table
+                const tbody = dataTable.querySelector('tbody');
+                tbody.innerHTML = '';
+                
+                // Update the data count
+                dataCount.textContent = '0 records collected';
+                
+                // Update the chart
+                updateChart();
+                
+                // Clear local storage
+                localStorage.removeItem('microbitsensordata');
+            }
+        }
+        
+        // Save data to local storage
+        function saveToLocalStorage() {
+            try {
+                // Only save the last 1000 records to avoid localStorage limits
+                const dataToSave = allData.slice(-1000);
+                
+                // Convert data for storage
+                const serializedData = JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    columns: dataColumns,
+                    data: dataToSave.map(d => ({
+                        ...d,
+                        timestamp: d.timestamp.toISOString()
+                    }))
+                });
+                
+                localStorage.setItem('microbitsensordata', serializedData);
+            } catch (e) {
+                console.error('Error saving to localStorage:', e);
+            }
+        }
+        
+        // Try to restore data from local storage
+        function tryRestoreData() {
+            try {
+                const savedData = localStorage.getItem('microbitsensordata');
+                if (!savedData) return;
+                
+                const { timestamp, columns, data } = JSON.parse(savedData);
+                
+                // Check if data is recent (less than 1 day old)
+                const savedTime = new Date(timestamp);
+                const now = new Date();
+                const oneDay = 24 * 60 * 60 * 1000;
+                
+                if (now - savedTime > oneDay) {
+                    // Data is old, don't restore
+                    return;
+                }
+                
+                // Ask user if they want to restore
+                if (!confirm(`Found previous session data from ${savedTime.toLocaleString()}. Restore it?`)) {
+                    return;
+                }
+                
+                // Restore columns
+                dataColumns = columns;
+                
+                // Update table headers
+                const headerRow = dataTable.querySelector('thead tr');
+                while (headerRow.children.length > 1) {
+                    headerRow.removeChild(headerRow.lastChild);
+                }
+                
+                dataColumns.forEach(column => {
+                    const th = document.createElement('th');
+                    th.textContent = column;
+                    headerRow.appendChild(th);
+                });
+                
+                // Restore data
+                allData = data.map(d => ({
+                    ...d,
+                    timestamp: new Date(d.timestamp)
+                }));
+                
+                // Update the table
+                const tbody = dataTable.querySelector('tbody');
+                tbody.innerHTML = '';
+                
+                // Add the most recent 100 rows to the table
+                allData.slice(-100).reverse().forEach(d => {
+                    addDataRow(d);
+                });
+                
+                // Update data count
+                dataCount.textContent = `${allData.length} records collected`;
+                
+                // Update column selectors
+                updateColumnSelectors();
+                
+                // Update chart
+                updateChart();
+            } catch (e) {
+                console.error('Error restoring from localStorage:', e);
+            }
+        }
+        
+        // Check for browser close and save data
+        window.addEventListener('beforeunload', function() {
+            saveToLocalStorage();
+        });
+    </script>
+</body>
+</html>
