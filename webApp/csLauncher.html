@@ -151,7 +151,7 @@
         
         .actions {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             margin-top: 24px;
         }
         
@@ -176,21 +176,6 @@
         .add-instance:hover {
             background-color: var(--primary-color);
             color: white;
-        }
-        
-        .launch-all {
-            background-color: var(--header-bg);
-            color: white;
-            padding: 12px 24px;
-        }
-        
-        .launch-all:hover {
-            background-color: #e0322a;
-        }
-        
-        .launch-all:disabled {
-            background-color: var(--text-muted);
-            cursor: not-allowed;
         }
         
         .launch-individual {
@@ -253,10 +238,6 @@
                 flex-direction: column;
                 gap: 12px;
             }
-            
-            .launch-all {
-                width: 100%;
-            }
         }
     </style>
 </head>
@@ -283,17 +264,10 @@
                 </svg>
                 Add Instance
             </button>
-            
-            <button class="launch-all" id="launchAllButton" disabled>
-                <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
-                Launch All Instances
-            </button>
         </div>
         
         <footer>
-            <p>St. Mary's Edenderry | ChronoSense 2025</p>
+            <p>St. Mary's Edenderry | ChronoSense 2025 </p>
         </footer>
     </div>
 
@@ -305,11 +279,9 @@
         // DOM elements
         const instanceList = document.getElementById('instanceList');
         const addInstanceButton = document.getElementById('addInstanceButton');
-        const launchAllButton = document.getElementById('launchAllButton');
         
-        // Add event listeners
+        // Add event listener
         addInstanceButton.addEventListener('click', addInstance);
-        launchAllButton.addEventListener('click', launchAllInstances);
         
         // Function to add a new instance
         function addInstance() {
@@ -326,9 +298,6 @@
             
             // Create DOM element for the instance
             createInstanceElement(instance);
-            
-            // Enable launch button if at least one instance exists
-            launchAllButton.disabled = instances.length === 0;
             
             // Save to localStorage
             saveInstances();
@@ -412,99 +381,85 @@
                 el.querySelector('.instance-number').textContent = index + 1;
             });
             
-            // Disable launch button if no instances
-            launchAllButton.disabled = instances.length === 0;
-            
             // Save to localStorage
             saveInstances();
         }
         
+        // Launch a single instance
         function launchInstance(instanceId) {
-    // Find the instance with the matching ID - fix the incorrect condition
-    const instance = instances.find(inst => inst.id === instanceId);
-    if (!instance) {
-        console.error(`Instance with ID ${instanceId} not found`);
-        return;
-    }
-    
-    // Close existing window if already running
-    if (runningInstances[instanceId] && !runningInstances[instanceId].closed) {
-        try {
-            runningInstances[instanceId].focus();
-            return; // Already running, just focus it
-        } catch (e) {
-            console.warn('Window reference error, creating new window:', e);
-        }
-    }
-    
-    const instanceName = instance.name;
-    console.log(`Launching instance: ${instanceName} (ID: ${instanceId})`);
-    
-    // Calculate window position (cascade windows)
-    const openCount = Object.keys(runningInstances).length;
-    const offsetX = openCount * 30;
-    const offsetY = openCount * 30;
-    
-    // Launch the instance
-    try {
-        const windowFeatures = `width=1000,height=800,left=${offsetX},top=${offsetY}`;
-        const instanceWindow = window.open(
-            `index.html?instance=${instanceId}&name=${encodeURIComponent(instanceName)}`, 
-            `ChronoSense_${instanceId}`, 
-            windowFeatures
-        );
-        
-        if (instanceWindow) {
-            runningInstances[instanceId] = instanceWindow;
-            
-            // Mark as running in the UI
-            const instanceElement = document.querySelector(`.instance-item[data-id="${instanceId}"]`);
-            if (instanceElement) {
-                instanceElement.classList.add('running');
+            // Find the instance with the matching ID
+            const instance = instances.find(inst => inst.id === instanceId);
+            if (!instance) {
+                console.error(`Instance with ID ${instanceId} not found`);
+                return;
             }
             
-            // Check when window is closed
-            const checkClosed = setInterval(() => {
-                if (instanceWindow.closed) {
-                    clearInterval(checkClosed);
-                    delete runningInstances[instanceId];
+            // Close existing window if already running
+            if (runningInstances[instanceId] && !runningInstances[instanceId].closed) {
+                try {
+                    runningInstances[instanceId].focus();
+                    return; // Already running, just focus it
+                } catch (e) {
+                    console.warn('Window reference error, creating new window:', e);
+                }
+            }
+            
+            const instanceName = instance.name;
+            console.log(`Launching instance: ${instanceName} (ID: ${instanceId})`);
+            
+            // Calculate window position (cascade windows)
+            const openCount = Object.keys(runningInstances).length;
+            const offsetX = openCount * 30;
+            const offsetY = openCount * 30;
+            
+            // Launch the instance
+            try {
+                const windowFeatures = `width=1000,height=800,left=${offsetX},top=${offsetY}`;
+                const instanceWindow = window.open(
+                    `index.html?instance=${instanceId}&name=${encodeURIComponent(instanceName)}`, 
+                    `ChronoSense_${instanceId}`, 
+                    windowFeatures
+                );
+                
+                if (instanceWindow) {
+                    runningInstances[instanceId] = instanceWindow;
                     
-                    // Update UI
+                    // Mark as running in the UI
                     const instanceElement = document.querySelector(`.instance-item[data-id="${instanceId}"]`);
                     if (instanceElement) {
-                        instanceElement.classList.remove('running');
+                        instanceElement.classList.add('running');
                     }
+                    
+                    // Check when window is closed
+                    const checkClosed = setInterval(() => {
+                        if (instanceWindow.closed) {
+                            clearInterval(checkClosed);
+                            delete runningInstances[instanceId];
+                            
+                            // Update UI
+                            const instanceElement = document.querySelector(`.instance-item[data-id="${instanceId}"]`);
+                            if (instanceElement) {
+                                instanceElement.classList.remove('running');
+                            }
+                        }
+                    }, 1000);
+                } else {
+                    console.error("Window couldn't be created. Check popup blocker.");
+                    alert("Failed to open instance. Please check if popup blocker is enabled.");
                 }
-            }, 1000);
-        } else {
-            console.error("Window couldn't be created. Check popup blocker.");
-            alert("Failed to open instance. Please check if popup blocker is enabled.");
+            } catch (error) {
+                console.error('Error launching instance:', error);
+                alert(`Failed to launch instance: ${error.message}`);
+            }
         }
-    } catch (error) {
-        console.error('Error launching instance:', error);
-        alert(`Failed to launch instance: ${error.message}`);
-    }
-}
-
-// Also add this debug function to help troubleshoot - you can call this from the browser console
-function debugInstances() {
-    console.log("Current instances:", instances);
-    console.log("Running instances:", runningInstances);
-    
-    instances.forEach(instance => {
-        console.log(`Instance ${instance.number}: ${instance.name} (ID: ${instance.id})`);
-    });
-}
         
-        // Launch all instances
-        function launchAllInstances() {
-            if (instances.length === 0) return;
+        // Debug function to help troubleshoot - you can call this from the browser console
+        function debugInstances() {
+            console.log("Current instances:", instances);
+            console.log("Running instances:", runningInstances);
             
-            // Launch each instance with a small delay between them
-            instances.forEach((instance, index) => {
-                setTimeout(() => {
-                    launchInstance(instance.id);
-                }, index * 500); // 500ms delay between launches
+            instances.forEach(instance => {
+                console.log(`Instance ${instance.number}: ${instance.name} (ID: ${instance.id})`);
             });
         }
         
@@ -531,9 +486,6 @@ function debugInstances() {
                     instances.forEach(instance => {
                         createInstanceElement(instance);
                     });
-                    
-                    // Enable/disable launch button
-                    launchAllButton.disabled = instances.length === 0;
                 }
             } catch (e) {
                 console.error('Error loading instances from localStorage:', e);
@@ -551,36 +503,6 @@ function debugInstances() {
         
         // Initialize on page load
         window.addEventListener('load', initializeInstances);
-        
-        // Modifications needed in the main ChronoSense app (chronosense.html)
-        // To make use of the instance parameters:
-        /*
-        // Add this to your main ChronoSense script
-        function getInstanceInfo() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const instanceId = urlParams.get('instance') || '';
-            const instanceName = urlParams.get('name') || `ChronoSense Instance`;
-            
-            // Update page title and header with instance name
-            document.title = instanceName;
-            const header = document.querySelector('header h1');
-            if (header) {
-                header.textContent = instanceName;
-            }
-            
-            // Use instanceId for localStorage
-            return { instanceId, instanceName };
-        }
-        
-        // Call this at startup
-        const { instanceId, instanceName } = getInstanceInfo();
-        
-        // Then use instanceId for localStorage keys:
-        localStorage.setItem(`microbitsensordata-${instanceId}`, serializedData);
-        
-        // And for export filenames:
-        const filename = `${instanceName.toLowerCase().replace(/\s+/g, '-')}-${timestamp}.csv`;
-        */
     </script>
 </body>
 </html>
