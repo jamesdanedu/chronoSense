@@ -1,4 +1,10 @@
 // ChronoSense Main JavaScript
+// --------------------------------------------------------------------------
+//  chronosense.js
+// 
+//  23-Mar-2025   Created after splitting HTML, CSS, JS   James O'Sullivan
+//
+// -------------------------------------------------------------------------- 
 
 // Function to get and display instance information from URL parameters
 function getInstanceInfo() {
