@@ -2,9 +2,118 @@
 // --------------------------------------------------------------------------
 //  chronosense.js
 // 
-//  23-Mar-2025   Created after splitting HTML, CSS, JS   James O'Sullivan
+//  23-Mar-2025   Created after splitting HTML, CSS, JS     J O'Sullivan
+//  28-Mar-2025   Added Advanced Calibration Functionality  J O'Sullivan
 //
 // -------------------------------------------------------------------------- 
+
+// Calibration Storage and Management
+const calibrationData = {};
+
+// Global variables
+let port;
+let reader;
+let readLoopRunning = false;
+let allData = [];
+let dataColumns = [];
+let chart;
+let autoExportInterval;
+
+// Calibration Methods and Utilities
+const calibrationMethods = {
+    single: {
+        generateInputs(container) {
+            container.innerHTML = `
+                <div class="calibration-input-group">
+                    <label>Current Reading:</label>
+                    <input type="number" id="currentReading" step="0.01">
+                </div>
+                <div class="calibration-input-group">
+                    <label>Known/Expected Value:</label>
+                    <input type="number" id="expectedValue" step="0.01">
+                </div>
+                <div class="calibration-preview">
+                    <p>Offset will be calculated to align current reading with expected value.</p>
+                </div>
+            `;
+        },
+        validate() {
+            const currentReading = parseFloat(document.getElementById('currentReading').value);
+            const expectedValue = parseFloat(document.getElementById('expectedValue').value);
+            return !isNaN(currentReading) && !isNaN(expectedValue);
+        },
+        calculateCalibration() {
+            const currentReading = parseFloat(document.getElementById('currentReading').value);
+            const expectedValue = parseFloat(document.getElementById('expectedValue').value);
+            
+            // Calculate offset
+            const offset = expectedValue - currentReading;
+            
+            return {
+                slope: 1,
+                intercept: offset
+            };
+        }
+    },
+    twoPoint: {
+        generateInputs(container) {
+            container.innerHTML = `
+                <div class="calibration-input-group">
+                    <label>Low Point Raw Value:</label>
+                    <input type="number" id="lowRawValue" step="0.01">
+                </div>
+                <div class="calibration-input-group">
+                    <label>Low Point Expected Value:</label>
+                    <input type="number" id="lowExpectedValue" step="0.01">
+                </div>
+                <div class="calibration-input-group">
+                    <label>High Point Raw Value:</label>
+                    <input type="number" id="highRawValue" step="0.01">
+                </div>
+                <div class="calibration-input-group">
+                    <label>High Point Expected Value:</label>
+                    <input type="number" id="highExpectedValue" step="0.01">
+                </div>
+                <div class="calibration-preview">
+                    <p>Linear calibration will be calculated between two points.</p>
+                </div>
+            `;
+        },
+        validate() {
+            const lowRawValue = parseFloat(document.getElementById('lowRawValue').value);
+            const lowExpectedValue = parseFloat(document.getElementById('lowExpectedValue').value);
+            const highRawValue = parseFloat(document.getElementById('highRawValue').value);
+            const highExpectedValue = parseFloat(document.getElementById('highExpectedValue').value);
+            
+            // Ensure all values are numbers and raw values are different
+            return !isNaN(lowRawValue) && !isNaN(lowExpectedValue) && 
+                   !isNaN(highRawValue) && !isNaN(highExpectedValue) &&
+                   lowRawValue !== highRawValue;
+        },
+        calculateCalibration() {
+            const lowRawValue = parseFloat(document.getElementById('lowRawValue').value);
+            const lowExpectedValue = parseFloat(document.getElementById('lowExpectedValue').value);
+            const highRawValue = parseFloat(document.getElementById('highRawValue').value);
+            const highExpectedValue = parseFloat(document.getElementById('highExpectedValue').value);
+            
+            // Calculate slope and intercept using point-slope formula
+            const slope = (highExpectedValue - lowExpectedValue) / (highRawValue - lowRawValue);
+            const intercept = lowExpectedValue - (slope * lowRawValue);
+            
+            return { slope, intercept };
+        }
+    }
+};
+
+// Function to apply calibration to a raw value
+function applyCalibration(column, rawValue) {
+    if (!calibrationData[column] || isNaN(rawValue)) {
+        return rawValue;
+    }
+    
+    const { slope, intercept } = calibrationData[column];
+    return (rawValue * slope) + intercept;
+}
 
 // Function to get and display instance information from URL parameters
 function getInstanceInfo() {
@@ -42,15 +151,6 @@ const instanceInfo = getInstanceInfo();
 const instanceId = instanceInfo.instanceId;
 const instanceName = instanceInfo.instanceName;
 
-// Global variables
-let port;
-let reader;
-let readLoopRunning = false;
-let allData = [];
-let dataColumns = [];
-let chart;
-let autoExportInterval;
-
 // DOM elements
 const connectButton = document.getElementById('connectButton');
 const connectionIndicator = document.getElementById('connectionIndicator');
@@ -65,23 +165,93 @@ const aboutButton = document.getElementById('aboutButton');
 const aboutModal = document.getElementById('aboutModal');
 const closeModal = document.querySelector('.close-modal');
 const exportImageButton = document.getElementById('exportImageButton');
+const calibrateButton = document.getElementById('calibrateButton');
 
-// Initialize Modal
-aboutButton.addEventListener('click', () => {
-    aboutModal.style.display = 'block';
-});
+// Calibration Modal Setup
+function setupCalibrationModal() {
+    const calibrationModal = document.getElementById('calibrationModal');
+    const calibrationColumnSelect = document.getElementById('calibrationColumn');
+    const calibrationMethodRadios = document.querySelectorAll('input[name="calibrationMethod"]');
+    const calibrationInputContainer = document.getElementById('calibrationInputContainer');
+    const applyCalibrationButton = document.getElementById('applyCalibrationButton');
+    const cancelCalibrationButton = document.getElementById('cancelCalibrationButton');
+    const calibrationModalClose = calibrationModal.querySelector('.close-modal');
 
-closeModal.addEventListener('click', () => {
-    aboutModal.style.display = 'none';
-});
+    // Open calibration modal
+    calibrateButton.addEventListener('click', () => {
+        calibrationModal.style.display = 'block';
+        
+        // Populate column dropdown
+        calibrationColumnSelect.innerHTML = dataColumns.map((column, index) => 
+            `<option value="${index}">${column}</option>`
+        ).join('');
+        
+        // Default to first method
+        document.getElementById('singlePointCalibration').checked = true;
+        calibrationMethods.single.generateInputs(calibrationInputContainer);
+        
+        // Enable/disable apply button based on inputs
+        updateCalibrationApplyButton();
+    });
 
-window.addEventListener('click', (event) => {
-    if (event.target === aboutModal) {
-        aboutModal.style.display = 'none';
-    }
-});
+    // Close modal
+    calibrationModalClose.addEventListener('click', () => {
+        calibrationModal.style.display = 'none';
+    });
 
-// Function to make column header editable
+    // Cancel button
+    cancelCalibrationButton.addEventListener('click', () => {
+        calibrationModal.style.display = 'none';
+    });
+
+    // Method radio button change
+    calibrationMethodRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const method = e.target.value === 'single' ? 
+                calibrationMethods.single : 
+                calibrationMethods.twoPoint;
+            
+            method.generateInputs(calibrationInputContainer);
+            updateCalibrationApplyButton();
+        });
+    });
+
+    // Column selection change
+    calibrationColumnSelect.addEventListener('change', updateCalibrationApplyButton);
+
+    // Input validation for apply button
+    calibrationInputContainer.addEventListener('input', updateCalibrationApplyButton);
+
+    // Apply calibration
+    applyCalibrationButton.addEventListener('click', () => {
+        const columnIndex = calibrationColumnSelect.value;
+        const column = dataColumns[columnIndex];
+        const method = document.getElementById('singlePointCalibration').checked ? 
+            calibrationMethods.single : 
+            calibrationMethods.twoPoint;
+        
+        // Calculate and store calibration
+        calibrationData[column] = method.calculateCalibration();
+        
+        // Close modal
+        calibrationModal.style.display = 'none';
+        
+        // Optional: Show confirmation
+        alert(`Calibration applied for ${column}`);
+    });
+}
+
+// Update apply button state
+function updateCalibrationApplyButton() {
+    const method = document.getElementById('singlePointCalibration').checked ? 
+        calibrationMethods.single : 
+        calibrationMethods.twoPoint;
+    
+    const applyCalibrationButton = document.getElementById('applyCalibrationButton');
+    applyCalibrationButton.disabled = !method.validate();
+}
+
+// Make column header editable
 function makeHeaderEditable(th, columnIndex) {
     th.classList.add('editable');
     
@@ -128,191 +298,6 @@ function makeHeaderEditable(th, columnIndex) {
             // Update chart
             updateChart();
         }
-    });
-}
-
-// Initialize elements
-autoExportInput.disabled = true; // Disabled by default
-const settingsRow = autoExportInput.closest('.settings-row');
-if (settingsRow) {
-    settingsRow.classList.add('disabled');
-}
-
-if ('serial' in navigator) {
-    connectButton.addEventListener('click', toggleConnection);
-    exportButton.addEventListener('click', () => exportData('csv'));
-    clearButton.addEventListener('click', clearData);
-    autoExportInput.addEventListener('change', setupAutoExport);
-    timeWindowSelect.addEventListener('change', updateChart);
-    exportImageButton.addEventListener('click', exportChartAsImage);
-} else {
-    connectButton.disabled = true;
-    connectButton.textContent = 'Web Serial API not supported';
-    alert('Your browser does not support the Web Serial API. Please use Chrome or Edge.');
-}
-
-// Function to export chart as image
-function exportChartAsImage() {
-    if (!chart) {
-        alert('No chart available to export');
-        return;
-    }
-    
-    try {
-        // Get the canvas element
-        const canvas = document.getElementById('dataChart');
-        
-        // Create a white background (charts with transparency will otherwise have black background)
-        const context = canvas.getContext('2d');
-        const compositeOperation = context.globalCompositeOperation;
-        const originalCanvasData = context.getImageData(0, 0, canvas.width, canvas.height);
-        
-        // Create a temporary offscreen canvas
-        const offscreenCanvas = document.createElement('canvas');
-        const offscreenContext = offscreenCanvas.getContext('2d');
-        offscreenCanvas.width = canvas.width;
-        offscreenCanvas.height = canvas.height;
-        
-        // Draw white background
-        offscreenContext.fillStyle = 'white';
-        offscreenContext.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw the original canvas on top
-        offscreenContext.drawImage(canvas, 0, 0);
-        
-        // Restore the original canvas
-        context.putImageData(originalCanvasData, 0, 0);
-        context.globalCompositeOperation = compositeOperation;
-        
-        // Convert to image and trigger download
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        
-        // Create instance-specific filename if available
-        let exportFilename;
-        if (instanceName) {
-            const sanitizedName = instanceName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-            exportFilename = `chronosense-chart-${sanitizedName}-${timestamp}.png`;
-        } else {
-            exportFilename = `chronosense-chart-${timestamp}.png`;
-        }
-        
-        const dataURL = offscreenCanvas.toDataURL('image/png');
-        
-        // Create download link
-        const link = document.createElement('a');
-        link.download = exportFilename;
-        link.href = dataURL;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    } catch (error) {
-        console.error('Error exporting chart:', error);
-        alert('Failed to export chart as image. Check console for details.');
-    }
-}
-
-// Create a function to add axis selectors
-function createImprovedAxisControls() {
-    // Create a container for axis selection that will go above the chart
-    const axisControlsContainer = document.createElement('div');
-    axisControlsContainer.className = 'axis-controls';
-    axisControlsContainer.innerHTML = `
-        <div class="axis-title">Y-Axis Assignment</div>
-        <div id="axis-options" class="axis-options">
-            <!-- Variable controls will be added here dynamically -->
-        </div>
-        <div class="axis-info">
-            <div class="axis-info-item">
-                <span class="axis-info-color left"></span>
-                <span>Left axis</span>
-            </div>
-            <div class="axis-info-item">
-                <span class="axis-info-color right"></span>
-                <span>Right axis</span>
-            </div>
-        </div>
-    `;
-    
-    // Insert before chart container
-    const chartContainer = document.querySelector('.chart-container');
-    chartContainer.parentNode.insertBefore(axisControlsContainer, chartContainer);
-}
-
-// Update the axis controls when data columns change
-function updateImprovedAxisControls() {
-    const axisOptions = document.getElementById('axis-options');
-    if (!axisOptions) return;
-    
-    // Clear existing controls
-    axisOptions.innerHTML = '';
-    
-    // Get all columns that are currently selected (checked) in the column selectors
-    const selectedColumns = Array.from(
-        document.querySelectorAll('#columnSelectors input[type="checkbox"]:checked')
-    ).map(checkbox => checkbox.dataset.column);
-    
-    // Only show controls for selected columns
-    if (selectedColumns.length === 0) {
-        axisOptions.innerHTML = '<div class="no-columns-message">Select columns to visualize first</div>';
-        return;
-    }
-    
-    // Add controls for each selected column
-    selectedColumns.forEach((column, index) => {
-        const varContainer = document.createElement('div');
-        varContainer.className = 'axis-variable selected-left'; // Default to left
-        varContainer.dataset.column = column;
-        
-        varContainer.innerHTML = `
-            <span class="axis-variable-name">${column}</span>
-            <div class="axis-selector">
-                <label class="left" title="Plot on left axis">
-                    <input type="radio" name="axis-${column}" data-column="${column}" data-axis="left" checked>
-                    L
-                </label>
-                <label class="right" title="Plot on right axis">
-                    <input type="radio" name="axis-${column}" data-column="${column}" data-axis="right">
-                    R
-                </label>
-            </div>
-        `;
-        
-        // Add event listeners to update the selected class and chart
-        const radioButtons = varContainer.querySelectorAll('input[type="radio"]');
-        radioButtons.forEach(radio => {
-            radio.addEventListener('change', function() {
-                // Update the container class
-                if (this.dataset.axis === 'left') {
-                    varContainer.className = 'axis-variable selected-left';
-                } else {
-                    varContainer.className = 'axis-variable selected-right';
-                }
-                
-                // Update the chart
-                updateChart();
-            });
-        });
-        
-        axisOptions.appendChild(varContainer);
-    });
-}
-
-// Update checkbox event handlers to ensure axis controls are updated
-function updateColumnSelectorHandlers() {
-    // Get all column checkboxes
-    const checkboxes = document.querySelectorAll('#columnSelectors input[type="checkbox"]');
-    
-    // Add/update change event listeners
-    checkboxes.forEach(checkbox => {
-        // Remove existing listeners to avoid duplicates
-        const newCheckbox = checkbox.cloneNode(true);
-        checkbox.parentNode.replaceChild(newCheckbox, checkbox);
-        
-        // Add new listener that updates both the chart and axis controls
-        newCheckbox.addEventListener('change', function() {
-            updateImprovedAxisControls();
-            updateChart();
-        });
     });
 }
 
@@ -407,8 +392,7 @@ function initChart() {
     console.log("Chart initialized with dual y-axis support");
 }
 
-// Initialize chart on page load
-initChart();
+// Continue from previous code...
 
 // Connect or disconnect from the serial port
 async function toggleConnection() {
@@ -430,6 +414,7 @@ async function toggleConnection() {
         exportButton.disabled = true;
         clearButton.disabled = true;
         exportImageButton.disabled = true;
+        calibrateButton.disabled = true;
         
         // Disable auto-export input
         autoExportInput.disabled = true;
@@ -457,6 +442,7 @@ async function toggleConnection() {
             
             exportButton.disabled = false;
             clearButton.disabled = false;
+            calibrateButton.disabled = false;
             
             // Enable auto-export input
             autoExportInput.disabled = false;
@@ -543,7 +529,11 @@ function processDataLine(line) {
         values.forEach((value, index) => {
             // Try to convert to number if possible
             const numValue = parseFloat(value);
-            dataObj[dataColumns[index]] = isNaN(numValue) ? value : numValue;
+            
+            // Store raw value and apply calibration
+            const column = dataColumns[index];
+            const processedValue = isNaN(numValue) ? value : applyCalibration(column, numValue);
+            dataObj[column] = processedValue;
         });
         
         // Add to our data array
@@ -563,9 +553,16 @@ function processDataLine(line) {
 }
 
 // Update the data columns based on the first data line
+// Update the data columns based on the first data line
 function updateDataColumns(values) {
-    // Generate generic column names if not provided
-    dataColumns = values.map((_, i) => `field${i+1}`);
+    // Only generate default column names if no existing columns
+    if (dataColumns.length === 0) {
+        dataColumns = values.map((_, i) => `field${i+1}`);
+    } else if (values.length !== dataColumns.length) {
+        // If column count changes, warn user but don't change names
+        console.warn('Column count changed. Current column names will be preserved.');
+        return;
+    }
     
     // Update the table headers
     const headerRow = dataTable.querySelector('thead tr');
@@ -588,6 +585,7 @@ function updateDataColumns(values) {
     // Update column selectors for the chart
     updateColumnSelectors();
 }
+
 
 // Update column selectors for the chart
 function updateColumnSelectors() {
@@ -614,19 +612,29 @@ function updateColumnSelectors() {
         columnSelectors.appendChild(div);
     });
     
-    // Create axis selectors if they don't exist yet
-    if (!document.querySelector('.axis-controls')) {
-        createImprovedAxisControls();
-    }
-    
-    // Update axis selectors
-    updateImprovedAxisControls();
-    
     // Update the checkbox event handlers
     updateColumnSelectorHandlers();
     
     // Initialize chart datasets
     updateChartDatasets();
+}
+
+// Update checkbox event handlers
+function updateColumnSelectorHandlers() {
+    // Get all column checkboxes
+    const checkboxes = document.querySelectorAll('#columnSelectors input[type="checkbox"]');
+    
+    // Add/update change event listeners
+    checkboxes.forEach(checkbox => {
+        // Remove existing listeners to avoid duplicates
+        const newCheckbox = checkbox.cloneNode(true);
+        checkbox.parentNode.replaceChild(newCheckbox, checkbox);
+        
+        // Add new listener that updates both the chart and axis controls
+        newCheckbox.addEventListener('change', function() {
+            updateChart();
+        });
+    });
 }
 
 // Add a data row to the table
@@ -678,39 +686,25 @@ function updateChart() {
         return;
     }
     
-    // Get selected axis for each column using the new UI
-    const columnAxes = {};
-    selectedColumns.forEach(column => {
-        const rightAxisRadio = document.querySelector(
-            `.axis-variable[data-column="${column}"] input[data-axis="right"]:checked`
-        );
-        columnAxes[column] = rightAxisRadio ? 'right' : 'left';
-    });
-    
     // Define colors for each axis
     const leftAxisColors = ['#3182ce', '#805ad5', '#38a169', '#4a5568'];
     const rightAxisColors = ['#ed8936', '#e53e3e', '#d69e2e', '#38b2ac'];
     
-    // Count how many datasets are on each axis
-    let leftAxisCount = 0;
-    let rightAxisCount = 0;
-    
     // Update datasets
-    chart.data.datasets = selectedColumns.map((column) => {
-        const isRightAxis = columnAxes[column] === 'right';
-        const axisColors = isRightAxis ? rightAxisColors : leftAxisColors;
-        const colorIndex = isRightAxis ? rightAxisCount++ : leftAxisCount++;
-        
+    chart.data.datasets = selectedColumns.map((column, index) => {
         const dataPoints = filteredData.map(d => ({
             x: d.timestamp,
             y: d[column]
         }));
         
+        const isRightAxis = index % 2 === 1;
+        const axisColors = isRightAxis ? rightAxisColors : leftAxisColors;
+        
         return {
             label: column,
             data: dataPoints,
-            borderColor: axisColors[colorIndex % axisColors.length],
-            backgroundColor: axisColors[colorIndex % axisColors.length] + '20',
+            borderColor: axisColors[Math.floor(index/2) % axisColors.length],
+            backgroundColor: axisColors[Math.floor(index/2) % axisColors.length] + '20',
             tension: 0.1,
             borderWidth: 2,
             pointRadius: 3,
@@ -718,50 +712,6 @@ function updateChart() {
             yAxisID: isRightAxis ? 'y1' : 'y'
         };
     });
-    
-    // If no datasets selected but we have data, show something by default
-    if (chart.data.datasets.length === 0 && dataColumns.length > 0) {
-        console.log("No columns selected, defaulting to first column:", dataColumns[0]);
-        
-        const dataPoints = filteredData.map(d => ({
-            x: d.timestamp,
-            y: d[dataColumns[0]]
-        }));
-        
-        chart.data.datasets = [{
-            label: dataColumns[0],
-            data: dataPoints,
-            borderColor: leftAxisColors[0],
-            backgroundColor: leftAxisColors[0] + '20',
-            tension: 0.1,
-            borderWidth: 2,
-            pointRadius: 3,
-            pointHoverRadius: 7,
-            yAxisID: 'y'
-        }];
-        
-        // Check the first checkbox
-        const firstCheckbox = document.getElementById('col-0');
-        if (firstCheckbox) firstCheckbox.checked = true;
-        
-        // Update the axis controls
-        updateImprovedAxisControls();
-    }
-    
-    // Update axis titles based on what's selected for each axis
-    const leftAxisColumns = selectedColumns.filter(col => columnAxes[col] === 'left');
-    const rightAxisColumns = selectedColumns.filter(col => columnAxes[col] === 'right');
-    
-    chart.options.scales.y.title.text = leftAxisColumns.length > 0 
-        ? leftAxisColumns.join(', ') 
-        : 'Left Axis';
-        
-    chart.options.scales.y1.title.text = rightAxisColumns.length > 0 
-        ? rightAxisColumns.join(', ') 
-        : 'Right Axis';
-    
-    // Hide right axis if not used
-    chart.options.scales.y1.display = rightAxisColumns.length > 0;
     
     // Enable chart export button if we have data
     if (chart.data.datasets.length > 0 && chart.data.datasets[0].data.length > 0) {
@@ -797,6 +747,8 @@ function exportData(format) {
         'time',                  // Time in HH:MM:SS format
         'day_of_week',           // Full day name (Monday, Tuesday, etc.)
         'month_of_year',         // Short month name (Jan, Feb, Mar, etc.)
+        'hour',                  // Hour of the day (0-23)
+        'minute',                // Minute of the hour (0-59)
         ...dataColumns
     ];
     
@@ -833,6 +785,8 @@ function exportData(format) {
             formattedTime,                  // Time in HH:MM:SS
             dayOfWeek,                      // Day of week
             monthOfYear,                    // Month of year
+            hours,                          // Hour of the day
+            minutes,                        // Minute of the hour
             ...dataColumns.map(col => {
                 // Handle special characters for CSV (quote fields with commas, etc.)
                 let value = data[col];
@@ -866,6 +820,66 @@ function exportData(format) {
     }
     
     saveAs(blob, exportFilename);
+}
+
+// Export chart as image
+function exportChartAsImage() {
+    if (!chart) {
+        alert('No chart available to export');
+        return;
+    }
+    
+    try {
+        // Get the canvas element
+        const canvas = document.getElementById('dataChart');
+        
+        // Create a white background (charts with transparency will otherwise have black background)
+        const context = canvas.getContext('2d');
+        const compositeOperation = context.globalCompositeOperation;
+        const originalCanvasData = context.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Create a temporary offscreen canvas
+        const offscreenCanvas = document.createElement('canvas');
+        const offscreenContext = offscreenCanvas.getContext('2d');
+        offscreenCanvas.width = canvas.width;
+        offscreenCanvas.height = canvas.height;
+        
+        // Draw white background
+        offscreenContext.fillStyle = 'white';
+        offscreenContext.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw the original canvas on top
+        offscreenContext.drawImage(canvas, 0, 0);
+        
+        // Restore the original canvas
+        context.putImageData(originalCanvasData, 0, 0);
+        context.globalCompositeOperation = compositeOperation;
+        
+        // Convert to image and trigger download
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        
+        // Create instance-specific filename if available
+        let exportFilename;
+        if (instanceName) {
+            const sanitizedName = instanceName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            exportFilename = `chronosense-chart-${sanitizedName}-${timestamp}.png`;
+        } else {
+            exportFilename = `chronosense-chart-${timestamp}.png`;
+        }
+        
+        const dataURL = offscreenCanvas.toDataURL('image/png');
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.download = exportFilename;
+        link.href = dataURL;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (error) {
+        console.error('Error exporting chart:', error);
+        alert('Failed to export chart as image. Check console for details.');
+    }
 }
 
 // Setup auto-export interval
@@ -908,25 +922,11 @@ function clearData() {
     }
 }
 
-// Save data to local storage function (disabled)
-function saveToLocalStorage() {
-    // Function intentionally left empty to disable automatic data saving
-    console.log("Data saving to localStorage has been disabled");
-}
-
-// Try to restore data from local storage function (disabled)
-function tryRestoreData() {
-    // Function intentionally left empty to disable data restoration
-    console.log("Data restoration has been disabled");
-}
-
-// Add some test data if in development mode (for testing purposes)
+// Add test data if in development mode
 function addTestData() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('debug') === 'true') {
         dataColumns = ['Temperature', 'Humidity', 'Pressure'];
-        
-        //dataColumns = ['Temperature', 'Humidity', 'Pressure'];
         
         // Update table headers
         const headerRow = dataTable.querySelector('thead tr');
@@ -982,5 +982,40 @@ function addTestData() {
     }
 }
 
-// Check if we should add test data
-addTestData();
+// Initialize chart on page load
+initChart();
+
+// Initialize modal interactions
+aboutButton.addEventListener('click', () => {
+    aboutModal.style.display = 'block';
+});
+
+closeModal.addEventListener('click', () => {
+    aboutModal.style.display = 'none';
+});
+
+window.addEventListener('click', (event) => {
+    if (event.target === aboutModal) {
+        aboutModal.style.display = 'none';
+    }
+});
+
+// Initialize calibration modal and load initial data
+window.addEventListener('load', () => {
+    setupCalibrationModal();
+    addTestData();
+});
+
+// Initialize elements based on serial API support
+if ('serial' in navigator) {
+    connectButton.addEventListener('click', toggleConnection);
+    exportButton.addEventListener('click', () => exportData('csv'));
+    clearButton.addEventListener('click', clearData);
+    autoExportInput.addEventListener('change', setupAutoExport);
+    timeWindowSelect.addEventListener('change', updateChart);
+    exportImageButton.addEventListener('click', exportChartAsImage);
+} else {
+    connectButton.disabled = true;
+    connectButton.textContent = 'Web Serial API not supported';
+    alert('Your browser does not support the Web Serial API. Please use Chrome or Edge.');
+}
