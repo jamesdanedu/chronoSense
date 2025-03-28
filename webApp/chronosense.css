@@ -17,6 +17,7 @@
     --right-axis-color: #ed8936;
 }
 
+
 /* General Layout */
 body {
     font-family: Arial, sans-serif;
@@ -582,4 +583,90 @@ footer {
         width: 100%;
         margin-top: 5px;
     }
+}
+/* Calibration Modal Styles */
+.calibration-modal .modal-content {
+    max-width: 500px;
+    padding: 20px;
+}
+
+.calibration-content h2 {
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.calibration-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.calibration-column-select,
+.calibration-method-select {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.radio-group {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.radio-group input[type="radio"] {
+    margin-right: 5px;
+}
+
+#calibrationInputContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background-color: var(--panel-bg);
+    padding: 15px;
+    border-radius: 4px;
+}
+
+.calibration-input-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.calibration-input-group label {
+    min-width: 150px;
+}
+
+.calibration-input-group input {
+    flex-grow: 1;
+    padding: 6px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+}
+
+.calibration-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+#applyCalibrationButton {
+    background-color: var(--success-color);
+}
+
+#cancelCalibrationButton {
+    background-color: var(--danger-color);
+}
+
+#calibrateButton {
+    background-color: var(--secondary-color);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#calibrateButton:disabled {
+    background-color: var(--text-muted);
+    cursor: not-allowed;
 }
