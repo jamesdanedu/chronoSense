@@ -6,6 +6,7 @@
 //  28-Mar-2025   Added Advanced Calibration Functionality   JOS
 //  29-Mar-2025   Added Y-Axis Controls and Scale Detection  JOS 
 //  04-Apr-2025   Added support for checksum validation with radio data JOS
+//  07-Apr-2025   Modified to hide checksum column from UI while preserving validation
 //
 // -------------------------------------------------------------------------- 
 
@@ -392,8 +393,22 @@ function updateDataWithCalibration(column) {
     
     // Apply calibration to data rows
     rows.forEach((row, rowIndex) => {
-        // Add 2 to columnIndex to account for status and timestamp columns
-        const cell = row.cells[columnIndex + 2];
+        // Determine the correct cell index
+        // If checksum column is hidden, we need to adjust the column index
+        let cellIndex = columnIndex + 2; // +2 for status and timestamp columns
+        
+        // Adjust for hidden checksum column if needed
+        if (checksumConfig.enabled && checksumConfig.lastColumnIsChecksum && columnIndex >= dataColumns.length - 1) {
+            // Skip checksum column
+            return;
+        }
+        
+        // If the checksum column is hidden, we need to adjust the cell index for visible columns
+        if (checksumConfig.enabled && checksumConfig.lastColumnIsChecksum && columnIndex < dataColumns.length - 1) {
+            // No adjustment needed for the cell index since we're iterating based on the visible columns
+        }
+        
+        const cell = row.cells[cellIndex];
         if (!cell) return;
         
         // Get the original uncalibrated value from allData
@@ -569,8 +584,14 @@ function updateDataColumns(values) {
     timestampHeader.textContent = 'Timestamp';
     headerRow.appendChild(timestampHeader);
     
-    // Add data column headers
-    dataColumns.forEach((column, index) => {
+    // Add data column headers, excluding checksum column if configured
+    const columnsToDisplay = [...dataColumns];
+    if (checksumConfig.enabled && checksumConfig.lastColumnIsChecksum) {
+        // Remove the last column (checksum) from display
+        columnsToDisplay.pop();
+    }
+    
+    columnsToDisplay.forEach((column, index) => {
         const th = document.createElement('th');
         th.textContent = column;
         headerRow.appendChild(th);
@@ -625,8 +646,14 @@ function addDataRow(dataObj) {
     timestampCell.textContent = dataObj.timestamp.toLocaleTimeString();
     row.appendChild(timestampCell);
     
-    // Add data cells
-    dataColumns.forEach(column => {
+    // Add data cells, excluding checksum column if configured
+    const columnsToDisplay = [...dataColumns];
+    if (checksumConfig.enabled && checksumConfig.lastColumnIsChecksum) {
+        // Remove the last column (checksum) from display
+        columnsToDisplay.pop();
+    }
+    
+    columnsToDisplay.forEach(column => {
         const cell = document.createElement('td');
         cell.textContent = dataObj[column];
         row.appendChild(cell);
@@ -769,14 +796,15 @@ function updateColumnSelectors() {
     // Clear existing checkboxes
     columnSelectors.innerHTML = '';
     
-    // Add new checkboxes, excluding checksum column if configured
-    dataColumns.forEach((column, index) => {
-        // Skip the checksum column if identified and enabled
-        if (checksumConfig.enabled && checksumConfig.lastColumnIsChecksum && 
-            index === dataColumns.length - 1) {
-            return;
-        }
-        
+    // Determine which columns to display (exclude checksum)
+    const columnsToDisplay = [...dataColumns];
+    if (checksumConfig.enabled && checksumConfig.lastColumnIsChecksum) {
+        // Remove the last column (checksum) from selectors
+        columnsToDisplay.pop();
+    }
+    
+    // Add new checkboxes
+    columnsToDisplay.forEach((column, index) => {
         const div = document.createElement('div');
         div.className = 'checkbox-item';
         
@@ -807,6 +835,7 @@ function updateColumnSelectorHandlers() {
     // Get all column checkboxes
     const checkboxes = document.querySelectorAll('#columnSelectors input[type="checkbox"]');
     
+
     // Add/update change event listeners
     checkboxes.forEach(checkbox => {
         // Remove existing listeners to avoid duplicates
@@ -1368,6 +1397,7 @@ function updateChart() {
     updateButtonStates();
 }
 
+
 // Export data as CSV
 function exportData(format) {
     if (allData.length === 0) {
@@ -1589,16 +1619,20 @@ function addTestData() {
         timestampHeader.textContent = 'Timestamp';
         headerRow.appendChild(timestampHeader);
         
-        // Add data column headers
-        dataColumns.forEach((column, index) => {
+        // Add data column headers, excluding checksum column if configured
+        const columnsToDisplay = [...dataColumns];
+        if (checksumConfig.enabled && checksumConfig.lastColumnIsChecksum) {
+            // Remove the last column (checksum) from display
+            columnsToDisplay.pop();
+        }
+        
+        columnsToDisplay.forEach((column, index) => {
             const th = document.createElement('th');
             th.textContent = column;
             headerRow.appendChild(th);
             
-            // Make the header editable (except for the checksum column)
-            if (!(checksumConfig.enabled && checksumConfig.lastColumnIsChecksum && index === dataColumns.length - 1)) {
-                makeHeaderEditable(th, index);
-            }
+            // Make the header editable
+            makeHeaderEditable(th, index);
         });
         
         // Create test data
@@ -1702,4 +1736,3 @@ if ('serial' in navigator) {
     connectButton.textContent = 'Web Serial API not supported';
     alert('Your browser does not support the Web Serial API. Please use Chrome or Edge.');
 }
-
