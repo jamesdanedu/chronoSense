@@ -1,0 +1,119 @@
+// Analogue Joystick Sensor for ChronoSense
+// Reads X/Y analog positions and button state
+// Sends data over radio with checksum validation
+//
+// Wiring:
+// VRx (X-axis) → P1
+// VRy (Y-axis) → P2  
+// SW (Switch/Button) → P8
+// VCC → 3V
+// GND → GND
+
+// Function to calculate checksum using modSum approach (consistent with other ChronoSense sensors)
+function calculateChecksum(values: number[]): number {
+    let sum = 0
+    for (let value of values) {
+        // Add ones digit of each absolute value to sum
+        sum += Math.abs(Math.round(value)) % 10
+    }
+    // Return ones digit of sum
+    return sum % 10
+}
+
+// Global variables
+let xPosition = 0
+let yPosition = 0
+let buttonPressed = 0
+let checksum = 0
+let dataString = ""
+let lastTransmissionTime = 0
+let transmissionInterval = 200 // Send data every 200ms
+
+// Set up radio communication
+radio.setGroup(143) // Using channel 143 - adjust if needed to avoid conflicts
+radio.setTransmitPower(7)
+
+// Configure joystick button pin with pull-up resistor
+pins.setPull(DigitalPin.P8, PinPullMode.PullUp)
+
+// Show startup message
+basic.showString("JOY")
+basic.pause(1000)
+basic.showIcon(IconNames.Target)
+
+// Button press handlers for interaction/calibration
+input.onButtonPressed(Button.A, function() {
+    // Show current X position
+    basic.showNumber(xPosition)
+    basic.pause(1000)
+    basic.clearScreen()
+})
+
+input.onButtonPressed(Button.B, function() {
+    // Show current Y position  
+    basic.showNumber(yPosition)
+    basic.pause(1000)
+    basic.clearScreen()
+})
+
+input.onButtonPressed(Button.AB, function() {
+    // Show button state
+    basic.showNumber(buttonPressed)
+    basic.pause(1000)
+    basic.clearScreen()
+})
+
+// Main program loop
+basic.forever(function() {
+    // Read joystick values
+    xPosition = pins.analogReadPin(AnalogReadWritePin.P1)
+    yPosition = pins.analogReadPin(AnalogReadWritePin.P2)
+    
+    // Read button state (inverted because of pull-up - 0 = pressed, 1 = not pressed)
+    buttonPressed = pins.digitalReadPin(DigitalPin.P8) == 0 ? 1 : 0
+    
+    // Play tone when button is pressed (keeping your original functionality)
+    if (buttonPressed == 1) {
+        music.playTone(262, music.beat(BeatFraction.Eighth))
+    }
+    
+    // Visual feedback: display joystick position on LED matrix
+    basic.clearScreen()
+    
+    // Map analog readings to 5x5 LED matrix (0-4 range)
+    let ledX = pins.map(xPosition, 0, 1023, 0, 4)
+    let ledY = pins.map(yPosition, 0, 1023, 0, 4)
+    
+    // Plot joystick position
+    led.plot(ledX, ledY)
+    
+    // Show button state with center LED brightness
+    if (buttonPressed == 1) {
+        led.plotBrightness(2, 2, 9) // Bright center dot when pressed
+    }
+    
+    // Send radio data at regular intervals
+    if (input.runningTime() - lastTransmissionTime >= transmissionInterval) {
+        lastTransmissionTime = input.runningTime()
+        
+        // Prepare values for checksum calculation
+        let values = [xPosition, yPosition, buttonPressed]
+        
+        // Calculate checksum
+        checksum = calculateChecksum(values)
+        
+        // Format data string: X,Y,Button,Checksum
+        dataString = "" + xPosition + "," + yPosition + "," + buttonPressed + "," + checksum
+        
+        // Send data over radio
+        radio.sendString(dataString)
+        
+        // Brief transmission indicator
+        led.plot(4, 0) // Top-right corner flash
+        basic.pause(50)
+        led.unplot(4, 0)
+    }
+    
+    // Small delay to prevent excessive CPU usage
+    basic.pause(50)
+})
