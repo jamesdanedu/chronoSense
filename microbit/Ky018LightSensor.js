@@ -346,8 +346,12 @@ basic.forever(function() {
         serial.writeString("Samples Collected: " + sampleCount + "\n")
         serial.writeString("=======================================\n\n")
         
+        // Calculate checksum for summary data
+        let summaryValues = [currentLevel, averageLevel, minLevel, maxLevel, range]
+        let summaryChecksum = calculateChecksum(summaryValues)
+        
         // Send summary via radio with SUMMARY prefix
-        radio.sendString("SUMMARY," + currentLevel + "," + averageLevel + "," + minLevel + "," + maxLevel + "," + range + "," + checksum)
+        radio.sendString("SUMMARY," + currentLevel + "," + averageLevel + "," + minLevel + "," + maxLevel + "," + range + "," + summaryChecksum)
     }
 })
 
@@ -439,3 +443,4 @@ basic.forever(function() {
         }
     }
 })
+
