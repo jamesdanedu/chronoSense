@@ -4,15 +4,11 @@
  * Hardware Connections (for micro:bit built-in mic):
  * 
  * - No external connections needed - uses onboard microphone
- * 
  * Alternative: Use analog microphone module
  * 
  * If you have an analog microphone module (like MAX4466, MAX9814):
- * 
  * - VCC: Connect to 3.3V on micro:bit
- * 
  * - GND: Connect to GND on micro:bit
- * 
  * - OUT: Connect to P0 (analog input)
  * 
  * Data Format:
@@ -24,9 +20,7 @@
  * Button Functions:
  * 
  * - Button A: Display current sound level
- * 
  * - Button B: Reset peak level tracking
- * 
  * - Button A+B: Calibrate noise floor
  */
 
